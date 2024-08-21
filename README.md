@@ -1,3 +1,12 @@
+# Repositopry for testing multinode torch training
+
+Build image with the following:
+
+```bash
+sudo docker build . -t torch-test:latest
+```
+
+
 # Image classification reference training scripts
 
 This folder contains reference training scripts for image classification.
