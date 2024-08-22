@@ -12,9 +12,19 @@ import utils
 from sampler import RASampler
 from torch import nn
 from torch.utils.data.dataloader import default_collate
-from torch.utils.tensorboard import SummaryWriter
+# from torch.utils.tensorboard import SummaryWriter
 from torchvision.transforms.functional import InterpolationMode
+import wandb
 
+def init_wandb(args, is_main):
+    # Initialize W&B on all nodes
+    wandb.init(
+        project=f"torch-distributed-{args.model}",
+        # entity="your_entity_name",
+        config=args,
+        group="distributed_training",
+        job_type="training" if is_main else "system_metrics"
+    )
 
 def train_one_epoch(
     model,
@@ -27,6 +37,7 @@ def train_one_epoch(
     model_ema=None,
     scaler=None,
     writer=None,
+    use_wandb=False,
 ):
     model.train()
     metric_logger = utils.MetricLogger(delimiter="  ")
@@ -93,10 +104,17 @@ def train_one_epoch(
         writer.add_scalar('Images Per Second/train', imgps, epoch)
         writer.add_scalar('Loss/train', loss.item(), epoch)
         writer.add_scalar('Learning Rate/train', optimizer.param_groups[0]["lr"], epoch)
+    if use_wandb and utils.is_main_process():
+        wandb.log({
+                'train/acc1': acc1,
+                'train/acc5': acc5,
+                'train/loss': loss.item(),
+                'train/lr': optimizer.param_groups[0]["lr"],
+            }, step=epoch)
 
 
 def evaluate(
-    model, criterion, data_loader, device, print_freq=100, log_suffix=""
+    model, criterion, data_loader, device, print_freq=100, log_suffix="", use_wandb=False,
 ):
     model.eval()
     metric_logger = utils.MetricLogger(delimiter="  ")
@@ -143,6 +161,13 @@ def evaluate(
     print(
         f"{header} Acc@1 {metric_logger.acc1.global_avg:.3f} Acc@5 {metric_logger.acc5.global_avg:.3f}"
     )
+
+    if use_wandb and utils.is_main_process():
+        wandb.log({
+                'eval/acc1': metric_logger.acc1.global_avg,
+                'eval/acc5': metric_logger.acc5.global_avg,
+            })
+    
     return metric_logger.acc1.global_avg
 
 
@@ -489,7 +514,15 @@ def main(args):
         return
 
     print("Start training")
-    writer = SummaryWriter(log_dir=args.output_dir)
+    # writer = SummaryWriter(log_dir=args.output_dir)
+
+    #init wandb if we got the API key
+    if "WANDB_API_KEY" in os.environ:
+        init_wandb(args, utils.is_main_process())
+        args.wandb = True
+    else:
+        args.wandb = False
+    
     start_time = time.time()
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
@@ -504,10 +537,12 @@ def main(args):
             args,
             model_ema,
             scaler,
-            writer=writer
+            use_wandb=args.wandb
+            # writer=writer
         )
         lr_scheduler.step()
-        evaluate(model, criterion, data_loader_test, device=device)
+        evaluate(model, criterion, data_loader_test, device=device,
+                 use_wandb=args.wandb,)
         if model_ema:
             evaluate(
                 model_ema,
@@ -515,6 +550,7 @@ def main(args):
                 data_loader_test,
                 device=device,
                 log_suffix="EMA",
+                use_wandb=args.wandb,
             )
         if args.output_dir:
             checkpoint = {
@@ -538,7 +574,9 @@ def main(args):
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print(f"Training time {total_time_str}")
-    writer.close()
+    if args.wandb:
+        wandb.finish()
+    # writer.close()
 
 
 def get_args_parser(add_help=True):

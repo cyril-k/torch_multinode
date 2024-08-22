@@ -6,7 +6,20 @@ Build image with the following:
 sudo docker build . -t torch-test:latest
 ```
 
-
+launch `train_toy.py` with the following for multinode setup:
+```yaml
+    - torchrun
+    - --nproc_per_node={{ $nproc_per_node }}
+    - --nnodes={{ $nnodes }}
+    - --node_rank={{ $i }}
+    - --master_addr={{ $masterAddr }}
+    - --master_port=5005
+    - train_toy.py
+    - --backend=nccl
+    - --use_syn
+    - --batch_size={{ $batchSize }}
+    - --arch={{ $arch }}
+```
 # Image classification reference training scripts
 
 This folder contains reference training scripts for image classification.
