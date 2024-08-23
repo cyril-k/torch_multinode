@@ -13,6 +13,7 @@ import random
 import numpy as np
 import time
 import importlib
+import wandb
 
 if "LOCAL_RANK" in os.environ:
     # Environment variables set by torch.distributed.launch or torchrun
@@ -29,6 +30,18 @@ else:
 
     sys.exit("Can't find the evironment variables for local rank")
 
+def is_main():
+    return LOCAL_RANK == 0
+
+def init_wandb(args):
+    # Initialize W&B on all nodes
+    wandb.init(
+        project=f"torch-distributed-{args.arch}",
+        # entity="your_entity_name",
+        config=args,
+        group="distributed_training-" + wandb.util.generate_id(),
+        job_type="training" #if is_main() else "system_metrics"
+    )
 
 def set_random_seeds(random_seed=0):
     torch.manual_seed(random_seed)
@@ -232,6 +245,12 @@ def main():
         ddp_model.parameters(), lr=learning_rate, momentum=0.9, weight_decay=1e-5
     )
 
+    if "WANDB_API_KEY" in os.environ:
+        init_wandb(argv)
+        argv.wandb = True
+    else:
+        argv.wandb = False
+
     # Loop over the dataset multiple times
     times = []
     for epoch in range(num_epochs):
@@ -246,6 +265,10 @@ def main():
                     print("-" * 75)
                     print("Epoch: {}, Accuracy: {}".format(epoch, accuracy))
                     print("-" * 75)
+                    if argv.wandb:
+                        wandb.log({
+                                'eval/acc': accuracy,
+                            }, step=epoch)
 
         ddp_model.train()
 
@@ -285,6 +308,14 @@ def main():
                         WORLD_SIZE * batch_size * count / elapsed
                     )
                 )
+                if argv.wandb:
+                    wandb.log({
+                            'train/loss': loss.item(),
+                            'train/lr': optimizer.param_groups[0]["lr"],
+                        }, step=epoch)
+                    
+    if argv.wandb:
+        wandb.finish()
 
 
 if __name__ == "__main__":
