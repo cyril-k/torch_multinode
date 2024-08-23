@@ -20,6 +20,8 @@ launch `train_toy.py` with the following for multinode setup:
     - --batch_size={{ $batchSize }}
     - --arch={{ $arch }}
 ```
+
+`train_toy.py` example is based on [example from Lambda labs](https://github.com/LambdaLabsML/examples/blob/main/pytorch/distributed/resnet/main.py)
 # Image classification reference training scripts
 
 This folder contains reference training scripts for image classification.
