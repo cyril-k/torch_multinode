@@ -7,7 +7,7 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.10"
-accelerate = "^0.33.0"
+llama-recipes = "^0.0.3"
 
 
 [build-system]
