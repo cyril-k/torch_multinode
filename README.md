@@ -1,29 +1,16 @@
-# Repositopry for testing multinode torch training
+# PyTorch native Tensor Parallel for distributed training
 
-Build image with the following:
+This example demonstrates SPMD Megatron-LM style Tensor Parallel by using
+PyTorch native Tensor Parallel APIs, which include:
 
-```bash
-sudo docker build . -t torch-test:latest
+1. Simple module-level Tensor Parallelism on a dummy MLP model.
+2. Simple module-level Tensor Parallelism with Sequence Parallel inputs/outputs on a dummy MLP model.
+3. A E2E demo of Fully Sharded Data Parallel + Tensor Parallel (with Sequence Parallel) on a example Llama2 model.
+
+More details about the PyTorch native Tensor Parallel APIs, please see PyTorch docs:
+https://pytorch.org/docs/stable/distributed.tensor.parallel.html
+
 ```
-
-launch `finetuning.py` with the following `args` for multinode setup:
-```yaml
-    - torchrun
-    - --nproc_per_node={{ $nproc_per_node }}
-    - --nnodes={{ $nnodes }}
-    - --node_rank={{ $i }}
-    - --rdzv_backend=c10d
-    - --rdzv_endpoint={{ $masterAddr }}:5005
-    - finetuning.py
-    - --enable_fsdp
-    - --model_name=meta-llama/Meta-Llama-3-8B 
-    - --output_dir=./
-    - --dataset="llamaguard_toxicchat_dataset"
-    - --fsdp_config.pure_bf16
-    - --use_fast_kernels
-    - --batch_size_training=8
-    - --num_workers_dataloader=8
-    - --use-wandb
+pip install -r requirements.txt
+python example.py
 ```
-
-`finetuning.py` script is based on [example from Meta](https://github.com/meta-llama/llama-recipes/blob/main/src/llama_recipes/finetuning.py).
